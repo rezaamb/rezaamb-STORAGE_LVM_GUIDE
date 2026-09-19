@@ -39,6 +39,7 @@ LV + FS Resize	LVM Logical + FS	lvextend -r -l +100%FREE /dev/<vg>/<lv>	-r handl
 
 
 1. Initial Storage Bootstrap (From Scratch - Raw Disk)
+
 این سناریو برای راه‌اندازی دیسک جدید به صورت Raw بدون افزودن لایه پیچیدگی پارتیشن‌بندی استفاده می‌شود.
 ```bash
 # 1. Initialize disk as an LVM Physical Volume
@@ -58,7 +59,9 @@ sudo mkfs.ext4 /dev/vg_data/lv_data
 ```
 
 2. Scenario A: Expanding an Existing Disk (Scale-Up)
+
 Step 0: Discovery & Layer Auditing
+
 همیشه قبل از تغییر ساختار، وضعیت تمام لایه‌ها را مستند و بررسی کنید:
 
 ```bash
@@ -81,6 +84,7 @@ df -Th
 ```
 
 Step 1: SCSI Bus Rescan (Kernel Detection)
+
 پس از افزایش سایز در مجازی‌ساز (vSphere / Proxmox / KVM / Cloud)، کرنل باید بلاک‌دیوایس را بازخوانی کند:
 
 ```bash
@@ -93,9 +97,11 @@ echo 1 | sudo tee /sys/class/block/sdc/device/rescan
 for host in /sys/class/scsi_host/host*/scan; do echo "- - -" | sudo tee "$host" > /dev/null; done
 ```
 Branch 1: Partitioned Disk (e.g., sda3, sdb1, sdc1)
+
 ```
 ⚠️ GPT Backup Header Notice:
+```
 
 در دیسک‌های GPT، هدر پشتیبان در آخرین سکتورهای دیسک نگهداری می‌شود. وقتی دیسک مجازی بزرگ می‌شود، این هدر در وسط دیسک می‌افتد. اجرای دستور parted ... print متوجه این جابجایی شده و به صورت تعاملی درخواست Fix را صادر می‌کند.
-```
+
 

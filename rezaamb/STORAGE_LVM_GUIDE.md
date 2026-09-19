@@ -105,3 +105,110 @@ Branch 1: Partitioned Disk (e.g., sda3, sdb1, sdc1)
 در دیسک‌های GPT، هدر پشتیبان در آخرین سکتورهای دیسک نگهداری می‌شود. وقتی دیسک مجازی بزرگ می‌شود، این هدر در وسط دیسک می‌افتد. اجرای دستور parted ... print متوجه این جابجایی شده و به صورت تعاملی درخواست Fix را صادر می‌کند.
 
 
+
+1. Check & Fix GPT Header
+```bash
+sudo parted /dev/sda print
+sudo parted /dev/sdb print
+sudo parted /dev/sdc print
+```
+
+2. Expand Partition Table
+
+```bash
+# Primary & Recommended Method (cloud-guest-utils)
+sudo growpart /dev/sda 1
+sudo growpart /dev/sda 3
+sudo growpart /dev/sdb 1
+sudo growpart /dev/sdc 1
+
+# Alternative Method using parted directly
+sudo parted /dev/sda resizepart 1 100%
+sudo parted /dev/sda resizepart 3 100%
+sudo parted /dev/sdb resizepart 1 100%
+sudo parted /dev/sdc resizepart 1 100%
+```
+
+
+3. Update Physical Volume (PV)
+
+```bash
+sudo pvresize /dev/sda1
+sudo pvresize /dev/sda3
+sudo pvresize /dev/sdb1
+sudo pvresize /dev/sdc1
+```
+
+
+Branch 2: Raw Disk (No Partition Table)
+```💡 Raw Disk Benefits:```
+هیچ نیازی به growpart، parted، دستکاری سکتورها یا رفع خطای GPT Header نیست. این فرایند ظرف ۲ ثانیه و بدون کوچک‌ترین ریسک به پایان می‌رسد.
+
+```bash
+# 1. Rescan device
+echo 1 | sudo tee /sys/class/block/sda/device/rescan
+echo 1 | sudo tee /sys/class/block/sdb/device/rescan
+echo 1 | sudo tee /sys/class/block/sdc/device/rescan
+
+# 2. Resize PV directly pointing to the whole block device
+sudo pvresize /dev/sda
+sudo pvresize /dev/sdb
+sudo pvresize /dev/sdc
+```
+
+3. Scenario B: Adding a Brand New Physical Disk (Scale-Out)
+
+هنگامی که یک هارد دیسک مجازی یا فیزیکی جدید به سیستم متصل شده و هدف، تزریق آن به استخر ذخیره‌سازی فعلی است:
+
+
+```bash
+# 1. Scan for the new physical disk
+echo 1 | sudo tee /sys/class/block/sdb/device/rescan
+echo 1 | sudo tee /sys/class/block/sdc/device/rescan
+for host in /sys/class/scsi_host/host*/scan; do echo "- - -" | sudo tee "$host" > /dev/null; done
+
+# 2. Initialize new physical disks as PVs
+sudo pvcreate /dev/sdb
+sudo pvcreate /dev/sdc
+
+# 3. Extend existing Volume Group with newly added PVs
+sudo vgextend vgdocker /dev/sdb
+sudo vgextend vgdocker /dev/sdc
+```
+
+4. Expanding Logical Volume & Filesystem (Common Final Step)
+
+سوییچ -r (--resizefs) در دستور lvextend فرآیند گسترش حجم منطقی و فایل‌سیستم زیربنایی را به صورت کاملاً آنلاین و اتمیک ترکیب می‌کند.
+
+```bash
+# Option 1: Allocate 100% of all available free extents in the VG
+sudo lvextend -r -l +100%FREE /dev/vgdocker/lvdocker
+
+# Option 2: Add a fixed amount (e.g., +50GB)
+sudo lvextend -r -L +50G /dev/vgdocker/lvdocker
+
+# Option 3: Allocate a percentage of the total Volume Group capacity
+sudo lvextend -r -l +50%VG /dev/vgdocker/lvdocker
+```
+
+
+5. Manual Filesystem Expansion (Fallback Mode)
+
+اگر به هر دلیلی گسترش LV را بدون سوییچ -r انجام دادید، سیستم‌فایل را به صورت دستی و با توجه به نوع فرمت آن افزایش دهید:
+
+ext4 / ext3 / ext2
+
+با آدرس بلاک‌دیوایس LVM اجرا شود:
+
+```bash
+sudo resize2fs /dev/mapper/vgdocker-lvdocker
+```
+
+XFS
+
+باید مستقیماً به مسیر Mount Point فعال داده شود، نه آدرس Device:
+```bash
+sudo xfs_growfs /var/lib/docker
+```
+
+

@@ -27,3 +27,12 @@ Storage Management Workflow
     ├── Step 3: Extend Volume Group (vgextend <vg_name> /dev/sdX)
     └── Step 4: Expand Logical Volume & Filesystem (lvextend -r)
 ```
+📋 Quick Reference Command Matrix
+```bash
+Scenario	Layer	Primary Command	Alternative / Notes
+Rescan Bus	Kernel / SCSI	echo 1 > /sys/class/block/sdX/device/rescan	for host in /sys/class/scsi_host/...
+Partition Fix	Disk Table (GPT)	parted /dev/sdX print	Fixes backup header at end of disk
+Partition Resize	Partition Table	growpart /dev/sdX <part_num>	parted /dev/sdX resizepart <num> 100%
+PV Resize	LVM Physical	pvresize /dev/sdX<part_num> (or /dev/sdX for raw)	Syncs PV size with underlying block size
+LV + FS Resize	LVM Logical + FS	lvextend -r -l +100%FREE /dev/<vg>/<lv>	-r handles resize2fs / xfs_growfs
+```
